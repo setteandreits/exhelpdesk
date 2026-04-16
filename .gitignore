@@ -1,0 +1,40 @@
+# ===== JAVA / MAVEN / SPRING BOOT =====
+target/
+*.class
+*.jar
+*.war
+*.log
+logs/
+spring-boot-*.log
+.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# ===== NODE / REACT / VITE =====
+node_modules/
+.pnp
+.pnp.js
+dist/
+build/
+.vite/
+.eslintcache
+
+# ===== ENV & SECRETS =====
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.aws/
+
+# ===== IDE =====
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+!.vscode/extensions.json
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
