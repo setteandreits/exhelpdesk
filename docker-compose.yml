@@ -1,0 +1,98 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: exhelpdesk-db
+    environment:
+      POSTGRES_DB: exhelpdesk
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - exhelpdesk-net
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: exhelpdesk-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3
+      DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - ./docker/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
+      - localstack_data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    networks:
+      - exhelpdesk-net
+
+  backend:
+    build:
+      context: ./backend
+    container_name: exhelpdesk-backend
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/exhelpdesk
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      AWS_ENDPOINT_OVERRIDE: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_BUCKET_NAME: exhelpdesk-files
+      JWT_SECRET: exhelpdesk-super-secret-key-change-in-production-min-256bit
+      JWT_EXPIRATION: 28800000
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep UP || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks:
+      - exhelpdesk-net
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: http://localhost:8080
+    container_name: exhelpdesk-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks:
+      - exhelpdesk-net
+
+volumes:
+  postgres_data:
+  localstack_data:
+
+networks:
+  exhelpdesk-net:
+    driver: bridge
