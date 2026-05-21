@@ -19,7 +19,7 @@ public class UserDto {
         dto.setNome(u.getNome());
         dto.setCognome(u.getCognome());
         dto.setEmail(u.getEmail());
-        dto.setRuolo(u.getRuolo().name());
+        dto.setRuolo(u.getRuolo() != null ? u.getRuolo().name() : "ROLE_EMPLOYEE");
         dto.setReparto(u.getReparto());
         dto.setFotoProfiloUrl(u.getFotoProfiloUrl());
         return dto;

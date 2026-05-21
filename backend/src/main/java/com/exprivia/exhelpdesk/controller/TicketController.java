@@ -86,7 +86,7 @@ public class TicketController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyAuthority('ROLE_OPERATOR','ROLE_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Cambia stato ticket")
     public ResponseEntity<TicketDto> changeStatus(@PathVariable String id,
                                                   Principal principal,

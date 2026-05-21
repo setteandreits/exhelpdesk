@@ -18,6 +18,7 @@ import com.exprivia.exhelpdesk.repository.TicketHistoryRepository;
 import com.exprivia.exhelpdesk.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -50,7 +52,7 @@ public class TicketService {
                 .stato(Ticket.Stato.APERTO)
                 .richiedente(richiedente)
                 .repartoDestinazione(req.getRepartoDestinazione())
-                .tag(req.getTag() != null ? req.getTag() : List.of())
+                .tag(req.getTag() != null ? new ArrayList<>(req.getTag()) : new ArrayList<>())
                 .build();
         return TicketDto.from(ticketRepository.save(ticket));
     }
@@ -60,12 +62,30 @@ public class TicketService {
                                 Ticket.Categoria categoria, Ticket.Priorita priorita,
                                 Ticket.Reparto reparto, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("dataApertura").descending());
+        List<Ticket> tickets;
         if ("ROLE_EMPLOYEE".equals(ruolo)) {
             User user = userService.getByEmail(email);
-            return ticketRepository.findByRichiedente(user, pageable).map(TicketDto::from);
+            tickets = ticketRepository.findByRichiedente(user);
+        } else {
+            tickets = ticketRepository.findAll();
         }
-        return ticketRepository.findWithFilters(stato, categoria, priorita, reparto, pageable)
-                .map(TicketDto::from);
+
+        List<TicketDto> filtered = tickets.stream()
+                .filter(ticket -> stato == null || ticket.getStato() == stato)
+                .filter(ticket -> categoria == null || ticket.getCategoria() == categoria)
+                .filter(ticket -> priorita == null || ticket.getPriorita() == priorita)
+                .filter(ticket -> reparto == null || ticket.getRepartoDestinazione() == reparto)
+                .sorted((left, right) -> {
+                    LocalDateTime leftDate = left.getDataApertura() != null ? left.getDataApertura() : LocalDateTime.MIN;
+                    LocalDateTime rightDate = right.getDataApertura() != null ? right.getDataApertura() : LocalDateTime.MIN;
+                    return rightDate.compareTo(leftDate);
+                })
+                .map(TicketDto::from)
+                .toList();
+
+        int start = Math.min((int) pageable.getOffset(), filtered.size());
+        int end = Math.min(start + pageable.getPageSize(), filtered.size());
+        return new PageImpl<>(filtered.subList(start, end), pageable, filtered.size());
     }
 
     @Transactional(readOnly = true)
@@ -92,6 +112,21 @@ public class TicketService {
     public TicketDto changeStatus(String ticketId, String operatoreEmail, ChangeStatusRequest req) {
         Ticket ticket = findById(ticketId);
         User operatore = userService.getByEmail(operatoreEmail);
+        boolean isOperatorOrAdmin = operatore.getRuolo() == User.Role.ROLE_OPERATOR || operatore.getRuolo() == User.Role.ROLE_ADMIN;
+        boolean isOwner = ticket.getRichiedente() != null && ticket.getRichiedente().getEmail().equals(operatoreEmail);
+
+        if (!isOperatorOrAdmin) {
+            if (!isOwner) {
+                throw new IllegalArgumentException("Non autorizzato a modificare questo ticket");
+            }
+            if (req.getStato() != Ticket.Stato.CHIUSO && req.getStato() != Ticket.Stato.APERTO) {
+                throw new IllegalArgumentException("Puoi solo chiudere o riaprire i tuoi ticket");
+            }
+        }
+
+        if (ticket.getStato() == req.getStato()) {
+            return TicketDto.from(ticket);
+        }
 
         TicketHistory history = TicketHistory.builder()
                 .ticket(ticket)
@@ -105,15 +140,19 @@ public class TicketService {
         ticket.setStato(req.getStato());
         if (req.getStato() == Ticket.Stato.RISOLTO || req.getStato() == Ticket.Stato.CHIUSO) {
             ticket.setDataChiusura(LocalDateTime.now());
+        } else {
+            ticket.setDataChiusura(null);
         }
         ticketRepository.save(ticket);
 
-        notificationRepository.save(Notification.builder()
-                .destinatario(ticket.getRichiedente())
-                .tipo(Notification.Tipo.STATO_CAMBIATO)
-                .ticket(ticket)
-                .messaggio("Il tuo ticket '" + ticket.getTitolo() + "' e' ora in stato: " + req.getStato().name())
-                .build());
+        if (isOperatorOrAdmin && ticket.getRichiedente() != null && !ticket.getRichiedente().getEmail().equals(operatoreEmail)) {
+            notificationRepository.save(Notification.builder()
+                    .destinatario(ticket.getRichiedente())
+                    .tipo(Notification.Tipo.STATO_CAMBIATO)
+                    .ticket(ticket)
+                    .messaggio("Il tuo ticket '" + ticket.getTitolo() + "' e' ora in stato: " + req.getStato().name())
+                    .build());
+        }
 
         return TicketDto.from(ticket);
     }

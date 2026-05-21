@@ -20,12 +20,16 @@ public class AuthService {
         if (userRepository.existsByEmail(req.getEmail()))
             throw new IllegalArgumentException("Email già registrata");
 
+        User.Role role = "ROLE_ADMIN".equals(req.getRuolo())
+                ? User.Role.ROLE_ADMIN
+                : User.Role.ROLE_EMPLOYEE;
+
         User user = User.builder()
                 .nome(req.getNome())
                 .cognome(req.getCognome())
                 .email(req.getEmail())
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
-                .ruolo(User.Role.ROLE_EMPLOYEE)
+                .ruolo(role)
                 .reparto(req.getReparto())
                 .attivo(true)
                 .build();

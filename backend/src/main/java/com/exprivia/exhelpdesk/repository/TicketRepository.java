@@ -17,6 +17,21 @@ public interface TicketRepository extends JpaRepository<Ticket, String> {
     List<Ticket> findByRichiedente(User richiedente);
 
     @Query("SELECT t FROM Ticket t WHERE " +
+           "t.richiedente = :richiedente AND " +
+           "(:stato IS NULL OR t.stato = :stato) AND " +
+           "(:categoria IS NULL OR t.categoria = :categoria) AND " +
+           "(:priorita IS NULL OR t.priorita = :priorita) AND " +
+           "(:reparto IS NULL OR t.repartoDestinazione = :reparto)")
+    Page<Ticket> findByRichiedenteWithFilters(
+        @Param("richiedente") User richiedente,
+        @Param("stato") Ticket.Stato stato,
+        @Param("categoria") Ticket.Categoria categoria,
+        @Param("priorita") Ticket.Priorita priorita,
+        @Param("reparto") Ticket.Reparto reparto,
+        Pageable pageable
+    );
+
+    @Query("SELECT t FROM Ticket t WHERE " +
            "(:stato IS NULL OR t.stato = :stato) AND " +
            "(:categoria IS NULL OR t.categoria = :categoria) AND " +
            "(:priorita IS NULL OR t.priorita = :priorita) AND " +

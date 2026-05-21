@@ -11,4 +11,5 @@ public class RegisterRequest {
     @Email @NotBlank private String email;
     @NotBlank private String password;
     private String reparto;
+    private String ruolo;
 }

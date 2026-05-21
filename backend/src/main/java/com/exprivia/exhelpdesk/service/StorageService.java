@@ -31,6 +31,7 @@ public class StorageService {
             "image/jpeg",
             "image/png",
             "image/gif",
+            "image/webp",
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
